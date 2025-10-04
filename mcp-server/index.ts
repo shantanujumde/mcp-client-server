@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import express from "express";
 import z from "zod";
 
 // Create server instance
@@ -30,9 +31,18 @@ server.tool(
 );
 
 async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error("Length MCP Server running on stdio");
+  const app = express();
+  const PORT = 4001;
+
+  app.get("/sse", async (req, res) => {
+    const transport = new SSEServerTransport("/sse", res);
+    await server.connect(transport);
+  });
+
+  app.listen(PORT, () => {
+    console.log(`Length MCP Server running on http://localhost:${PORT}`);
+    console.log(`SSE endpoint available at http://localhost:${PORT}/sse`);
+  });
 }
 
 main().catch((error) => {

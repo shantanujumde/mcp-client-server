@@ -1,76 +1,41 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { serve } from "bun";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import z from "zod";
 
+// Create server instance
 const server = new McpServer({
-  name: "mcp-server",
+  name: "length",
   version: "1.0.0",
-  description: "A simple MCP server",
+  capabilities: {
+    resources: {},
+    tools: {},
+  },
 });
 
-server.registerTool(
-  "weather",
+server.tool(
+  "get_length",
+  "Get length of a string",
   {
-    title: "Weather Tool",
-    description: "Get the weather for a given location",
+    state: z.string().describe("The string to get the length of"),
   },
-  async () => ({
-    content: [{ type: "text", text: "The weather is sunny" }],
-  })
+  async ({ state }) => {
+    const length = state.length;
+
+    return {
+      content: [
+        { type: "text", text: `The length of the string is ${length}` },
+      ],
+    };
+  }
 );
 
-serve({
-  port: 3001,
-  // `routes` requires Bun v1.2.3+
-  routes: {
-    "/mcp": async (req: Request, server: any) => {
-      // In stateless mode, create a new instance of transport and server for each request
-      // to ensure complete isolation. A single instance would cause request ID collisions
-      // when multiple clients connect concurrently.
+async function main() {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error("Length MCP Server running on stdio");
+}
 
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: undefined,
-      });
-
-      // ensure cleanup on disconnect
-      const cleanup = () => {
-        try {
-          transport.close();
-        } catch {}
-        try {
-          server.close();
-        } catch {}
-      };
-      if (req.signal.aborted) cleanup();
-      else req.signal.addEventListener("abort", cleanup, { once: true });
-
-      try {
-        await server.connect(transport);
-
-        // If your transport exposes a fetch-style handler that returns a Response:
-        // e.g. handle(req) or handleFetch(req)
-        // Replace with the actual method name your SDK provides.
-        // @ts-expect-error adjust for your SDK
-        await transport.handle(req);
-        return new Response("OK");
-      } catch (error) {
-        console.error("Error handling MCP request:", error);
-        cleanup();
-
-        return new Response(
-          JSON.stringify({
-            jsonrpc: "2.0",
-            error: { code: -32603, message: "Internal server error" },
-            id: null,
-          }),
-          { status: 500, headers: { "content-type": "application/json" } }
-        );
-      }
-    },
-
-    "/api/status": () => {
-      console.log("status");
-      return new Response("OK");
-    },
-  },
+main().catch((error) => {
+  console.error("Fatal error in main():", error);
+  process.exit(1);
 });

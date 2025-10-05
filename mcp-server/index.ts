@@ -24,6 +24,7 @@ server.tool(
   },
   async ({ state }) => {
     const length = state.length;
+    console.log(`The length of the string is ${length}`);
 
     return {
       content: [

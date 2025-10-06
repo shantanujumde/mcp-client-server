@@ -1,9 +1,9 @@
 import { openai } from "@ai-sdk/openai";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import {
-  CoreMessage,
   experimental_createMCPClient as createMCPClient,
   generateText,
+  ModelMessage,
 } from "ai";
 import dotenv from "dotenv";
 
@@ -52,7 +52,7 @@ async function askAi(target: string): Promise<void> {
     return;
   }
 
-  const messages: CoreMessage[] = [
+  const messages: ModelMessage[] = [
     {
       role: "system",
       content:
@@ -111,9 +111,7 @@ async function askAi(target: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  await askAi(
-    "what is the length of xxxxxxxxxxxxxx and tell me a joke about it"
-  );
+  await askAi("what is the length of `😊 xxx` and tell me a joke about it");
 }
 
 main();

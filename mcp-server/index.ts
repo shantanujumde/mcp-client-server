@@ -24,11 +24,14 @@ server.tool(
   },
   async ({ state }) => {
     const length = state.length;
-    console.log(`The length of the string is ${length}`);
+    console.log(`Calculating length of "${state}": ${length}`);
 
     return {
       content: [
-        { type: "text", text: `The length of the string is ${length}` },
+        {
+          type: "text",
+          text: `The length of "${state}" is ${length} characters.`,
+        },
       ],
     };
   }

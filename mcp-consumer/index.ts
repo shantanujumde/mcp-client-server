@@ -1,6 +1,7 @@
 import { openai } from "@ai-sdk/openai";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import {
+  CoreMessage,
   experimental_createMCPClient as createMCPClient,
   generateText,
 } from "ai";
@@ -10,6 +11,9 @@ let client: Awaited<ReturnType<typeof createMCPClient>>;
 
 dotenv.config();
 
+const MCP_SERVER_URL =
+  process.env.MCP_SERVER_URL ?? "http://localhost:4001/sse";
+
 // STEP 1: Initialize an MCP client to connect to the SSE MCP server
 const connectToMcpServer = async (): Promise<
   | Promise<
@@ -18,16 +22,15 @@ const connectToMcpServer = async (): Promise<
   | undefined
 > => {
   try {
-    const transport = new SSEClientTransport(
-      new URL("http://localhost:4001/sse")
-    );
+    console.log(`Connecting to MCP server at ${MCP_SERVER_URL}`);
+    const transport = new SSEClientTransport(new URL(MCP_SERVER_URL));
     client = await createMCPClient({ transport });
 
     const tools = await client.tools();
 
     // List all available tools
     console.log("Available MCP Tools:");
-    console.log(JSON.stringify(tools, null, 2));
+    console.log(Object.keys(tools).join(", "));
     console.log("==================");
     console.log(`Total tools: ${Object.keys(tools).length}`);
 
@@ -49,29 +52,58 @@ async function askAi(target: string): Promise<void> {
     return;
   }
 
-  try {
-    const response = await generateText({
-      model: openai("gpt-4o"),
-      tools,
-      toolChoice: "required",
-      messages: [
-        {
-          role: "system",
-          content:
-            "Always use the available MCP tools for the queries asked by the users. And provide the answer in a descriptive format.",
-        },
-        {
-          role: "user",
-          content: target,
-        },
-      ],
-    });
+  const messages: CoreMessage[] = [
+    {
+      role: "system",
+      content:
+        "You are a helpful assistant. After using tools, always provide a clear, conversational response explaining what you found.",
+    },
+    {
+      role: "user",
+      content: target,
+    },
+  ];
 
-    console.log("AI Response:", response.text);
+  try {
+    let continueLoop = true;
+    let stepCount = 0;
+    const maxSteps = 5;
+
+    while (continueLoop && stepCount < maxSteps) {
+      stepCount++;
+      console.log(`\n=== Step ${stepCount} ===`);
+
+      const result = await generateText({
+        model: openai("gpt-4o"),
+        tools: tools,
+        maxRetries: 3,
+        messages,
+      });
+
+      const finishReason = result.finishReason;
+
+      console.log(`\n[Finish reason: ${finishReason}]`);
+
+      if (finishReason === "tool-calls") {
+        // Add assistant's tool calls to messages
+        const responseMetadata = result.response;
+        messages.push(...responseMetadata.messages);
+        console.log("Continuing after tool execution...");
+      } else {
+        // We got a final response
+        continueLoop = false;
+        console.log("\n\n=== Final AI Response ===");
+        console.log(result.text);
+      }
+    }
+
+    if (stepCount >= maxSteps) {
+      console.log("\n⚠️  Reached max steps without final response");
+    }
   } catch (error) {
     console.error("Error during AI generation:", error);
   } finally {
-    console.log("Closing client");
+    console.log("\nClosing client");
     if (client) {
       await client.close();
     }
@@ -79,7 +111,9 @@ async function askAi(target: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  await askAi("What is the length of 'Hello World'?");
+  await askAi(
+    "what is the length of xxxxxxxxxxxxxx and tell me a joke about it"
+  );
 }
 
 main();
